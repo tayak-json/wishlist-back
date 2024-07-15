@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+    nginx:
+        image: nginx:1.23
+        restart: always
+        tty: true
+        ports:
+            - "${DC_GATEWAY}:80:80"
+        volumes:
+            - ./nginx/templates:/etc/nginx/templates
+            - ../:/var/www
+        links:
+            - php
+        networks:
+            - wishlist-network
+
+    database:
+        image: postgres:16.1
+        restart: always
+        tty: true
+        environment:
+            POSTGRES_USER: "${DB_USER}"
+            POSTGRES_PASSWORD: "${DB_PASSWORD}"
+            POSTGRES_DB: "${DB_DATABASE}"
+        ports:
+            - "${DC_GATEWAY}:5432:5432"
+        volumes:
+            - "wishlist-back:/var/lib/postgresql/data"
+        networks:
+            - wishlist-network
+
+    php:
+        restart: always
+        tty: true
+        build:
+            context: ./php
+        environment:
+            XDEBUG_CONFIG: client_host=host.docker.internal
+            PHP_IDE_CONFIG: "serverName=${DC_PROJECT_NAME}"
+            APP_DOMAIN: "${DC_APP_DOMAIN}"
+        ports:
+            - "${DC_GATEWAY}:9000:9000"
+        volumes:
+            - ../:/var/www
+        depends_on:
+            - database
+        links:
+            - database
+        networks:
+            - wishlist-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        dns:
+            - 8.8.8.8
+
+networks:
+    wishlist-network:
+        driver: bridge
+        ipam:
+            driver: default
+            config:
+                - subnet: "${DC_SUBNET}/24"
+                  gateway: "${DC_GATEWAY}"
+
+volumes:
+    wishlist-back:
